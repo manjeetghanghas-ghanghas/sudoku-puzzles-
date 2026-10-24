@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="hi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<meta name="theme-color" content="#2457d6">
+<title>Sudoku Master</title>
+<style>
+:root{--blue:#2457d6;--pale:#eaf0ff;--line:#cbd4e4;--ink:#17233d;--good:#dff7e8;--bad:#ffe3e3}
+*{box-sizing:border-box}body{margin:0;background:#f4f7fc;color:var(--ink);font-family:system-ui,-apple-system,Segoe UI,sans-serif}
+main{max-width:520px;margin:auto;padding:18px 14px 28px}
+header{text-align:center;margin:8px 0 18px}h1{margin:0;color:var(--blue);font-size:30px}header p{margin:4px 0;color:#65718a}
+.panel{background:white;border-radius:18px;padding:14px;box-shadow:0 5px 20px #1c376410}
+.toolbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;justify-content:space-between;margin-bottom:12px}
+select,button{font:inherit;border:0;border-radius:11px;padding:10px 12px}
+select{background:#eef2fa;color:var(--ink);flex:1;min-width:120px}
+button{background:var(--blue);color:white;font-weight:650;cursor:pointer}
+button.secondary{background:var(--pale);color:var(--blue)}button:active{transform:scale(.98)}
+.stats{display:flex;justify-content:space-between;font-size:14px;color:#5e6b84;margin:4px 2px 12px}
+#board{display:grid;grid-template-columns:repeat(9,1fr);border:2px solid #344767;border-radius:5px;overflow:hidden;aspect-ratio:1}
+.cell{min-width:0;aspect-ratio:1;border:0;border-right:1px solid var(--line);border-bottom:1px solid var(--line);border-radius:0;padding:0;background:white;color:#24324e;font-size:clamp(16px,5vw,24px);display:flex;align-items:center;justify-content:center}
+.cell:nth-child(9n){border-right:0}.cell:nth-child(n+73){border-bottom:0}
+.cell.box-right{border-right:2px solid #344767}.cell.box-bottom{border-bottom:2px solid #344767}
+.cell.given{font-weight:800;background:#f0f3f8}.cell.selected{background:#d9e6ff!important;outline:2px solid var(--blue);outline-offset:-2px}
+.cell.related{background:#f2f6ff}.cell.same{background:#dce7ff;color:#1748bd;font-weight:800}
+.cell.error{background:var(--bad)!important;color:#b91c1c}.cell.correct-entry{color:#17643b}
+.numbers{display:grid;grid-template-columns:repeat(9,1fr);gap:5px;margin:14px 0 10px}
+.numbers button{padding:12px 0;background:#edf2ff;color:#244fba;font-size:20px}
+.actions{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.actions button{font-size:14px;padding:11px 4px}
+#message{min-height:24px;text-align:center;font-size:14px;margin-top:12px;color:#53627d}
+footer{text-align:center;font-size:12px;color:#7b879b;margin-top:16px}
+@media(min-width:420px){main{padding-top:24px}.panel{padding:18px}}
+</style>
+</head>
+<body>
+<main>
+<header><h1>Sudoku Master</h1><p>दिमाग तेज़ करें, हर दिन एक नई पहेली!</p></header>
+<section class="panel">
+<div class="toolbar">
+<select id="difficulty" aria-label="कठिनाई">
+<option value="easy">Easy — आसान</option><option value="medium" selected>Medium — मध्यम</option><option value="hard">Hard — कठिन</option>
+</select>
+<button id="newGame">नया गेम</button>
+</div>
+<div class="stats"><span>⏱ समय: <b id="timer">00:00</b></span><span>गलतियाँ: <b id="mistakes">0</b></span><span>भरे: <b id="filled">0/81</b></span></div>
+<div id="board" aria-label="Sudoku board"></div>
+<div class="numbers" id="numbers"></div>
+<div class="actions">
+<button class="secondary" id="hint">💡 Hint</button><button class="secondary" id="erase">⌫ मिटाएँ</button><button class="secondary" id="check">✓ जाँचें</button>
+</div>
+<div id="message" role="status">खाली खाने पर टैप करें, फिर 1 से 9 चुनें।</div>
+</section>
+<footer>Sudoku Master · शुरुआती संस्करण · इंटरनेट के बिना भी चलता है</footer>
+</main>
+<script>
+const $=id=>document.getElementById(id);
+let puzzle=[], solution=[], fixed=[], selected=-1, mistakes=0, seconds=0, timerId=null, finished=false;
+const board=$('board');
+function shuffle(a){for(let i=a.length-1;i>0;i--){let j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]]}return a}
+function pattern(r,c){return (r*3+Math.floor(r/3)+c)%9}
+function makeSolution(){
+ const rows=shuffle([0,1,2]).flatMap(g=>shuffle([0,1,2]).map(r=>g*3+r));
+ const cols=shuffle([0,1,2]).flatMap(g=>shuffle([0,1,2]).map(c=>g*3+c));
+ const nums=shuffle([1,2,3,4,5,6,7,8,9]);
+ return rows.map(r=>cols.map(c=>nums[pattern(r,c)]));
+}
+function startGame(){
+ clearInterval(timerId);seconds=0;mistakes=0;selected=-1;finished=false;
+ solution=makeSolution();puzzle=solution.map(row=>row.slice());
+ const holes={easy:34,medium:44,hard:52}[$('difficulty').value];
+ let cells=shuffle(Array.from({length:81},(_,i)=>i));
+ cells.slice(0,holes).forEach(i=>puzzle[Math.floor(i/9)][i%9]=0);
+ fixed=puzzle.map(row=>row.map(v=>v!==0));
+ $('mistakes').textContent='0';$('message').textContent='खाली खाने पर टैप करें, फिर 1 से 9 चुनें।';
+ timerId=setInterval(()=>{if(!finished){seconds++;$('timer').textContent=String(Math.floor(seconds/60)).padStart(2,'0')+':'+String(seconds%60).padStart(2,'0')}},1000);
+ render();
+}
+function render(){
+ board.innerHTML='';
+ for(let r=0;r<9;r++)for(let c=0;c<9;c++){
+  const i=r*9+c, b=document.createElement('button');b.className='cell';b.type='button';
+  if(fixed[r][c])b.classList.add('given');if(c===2||c===5)b.classList.add('box-right');if(r===2||r===5)b.classList.add('box-bottom');
+  b.textContent=puzzle[r][c]||'';b.setAttribute('aria-label',`पंक्ति ${r+1}, कॉलम ${c+1}, ${puzzle[r][c]||'खाली'}`);
+  if(selected===i)b.classList.add('selected');
+  if(selected>=0){let sr=Math.floor(selected/9),sc=selected%9;if(r===sr||c===sc||(Math.floor(r/3)===Math.floor(sr/3)&&Math.floor(c/3)===Math.floor(sc/3)))b.classList.add('related');if(puzzle[r][c]&&puzzle[r][c]===puzzle[Math.floor(selected/9)][selected%9])b.classList.add('same')}
+  if(puzzle[r][c]&&!fixed[r][c])b.classList.add('correct-entry');
+  b.onclick=()=>{selected=i;render()};board.appendChild(b);
+ }
+ const filled=puzzle.flat().filter(Boolean).length;$('filled').textContent=filled+'/81';
+}
+function enter(n){
+ if(selected<0){$('message').textContent='पहले Sudoku में कोई खाली खाना चुनें।';return}
+ let r=Math.floor(selected/9),c=selected%9;if(fixed[r][c]||finished)return;
+ if(n!==solution[r][c]){mistakes++;$('mistakes').textContent=mistakes;$('message').textContent='यह नंबर सही नहीं है। फिर कोशिश करें।';board.children[selected].classList.add('error');return}
+ puzzle[r][c]=n;$('message').textContent='बहुत बढ़िया! सही नंबर।';render();
+ if(puzzle.flat().every((v,i)=>v===solution[Math.floor(i/9)][i%9])){finished=true;clearInterval(timerId);$('message').textContent='🎉 बधाई! आपने Sudoku पूरा कर लिया!';}
+}
+for(let n=1;n<=9;n++){let b=document.createElement('button');b.textContent=n;b.onclick=()=>enter(n);$('numbers').appendChild(b)}
+$('newGame').onclick=startGame;
+$('erase').onclick=()=>{if(selected<0)return;let r=Math.floor(selected/9),c=selected%9;if(!fixed[r][c]){puzzle[r][c]=0;render();$('message').textContent='खाना मिटा दिया गया।'}};
+$('hint').onclick=()=>{if(selected<0){$('message').textContent='पहले कोई खाली खाना चुनें।';return}let r=Math.floor(selected/9),c=selected%9;if(fixed[r][c]){$('message').textContent='यह पहले से दिया गया नंबर है।';return}puzzle[r][c]=solution[r][c];render();$('message').textContent='💡 Hint: सही नंबर भर दिया गया।';if(puzzle.flat().every((v,i)=>v===solution[Math.floor(i/9)][i%9])){finished=true;clearInterval(timerId);$('message').textContent='🎉 बधाई! आपने Sudoku पूरा कर लिया!'}};
+$('check').onclick=()=>{let wrong=0,empty=0;puzzle.forEach((row,r)=>row.forEach((v,c)=>{if(!v)empty++;else if(v!==solution[r][c])wrong++}));$('message').textContent=wrong?'कुछ नंबर गलत हैं — लाल खाने ठीक करें।':empty?`अब तक सब सही है! ${empty} खाने बाकी हैं।`:'🎉 Sudoku पूरा हो गया!';};
+startGame();
+</script>
+</body>
+</html>
